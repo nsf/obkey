@@ -125,3 +125,5 @@ win.show_all()
 # get rid of stupid autocalculation
 hbox.set_position(hbox.get_position())
 gtk.main()
+
+print ob.keyboard.deparse().toprettyxml("  ", "\n", "utf-8")
