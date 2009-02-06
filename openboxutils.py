@@ -3,9 +3,330 @@
 import xml.dom.minidom
 import gtk
 import gobject
+import os
 
 #=====================================================================================
-# GUI Elements
+# Key utils
+#=====================================================================================
+
+replace_table_openbox2gtk = {
+  "mod1" : "<Mod1>",
+  "mod2" : "<Mod2>",
+  "mod3" : "<Mod3>",
+  "mod4" : "<Mod4>",
+  "mod5" : "<Mod5>",
+  "control" : "<Ctrl>",
+  "c" : "<Ctrl>",
+  "alt" : "<Alt>",
+  "a" : "<Alt>",
+  "meta" : "<Meta>",
+  "m" : "<Meta>",
+  "super" : "<Super>",
+  "w" : "<Super>",
+  "shift" : "<Shift>",
+  "s" : "<Shift>",
+  "hyper" : "<Hyper>",
+  "h" : "<Hyper>"
+}
+
+replace_table_gtk2openbox = {
+  "Mod1" : "Mod1",
+  "Mod2" : "Mod2",
+  "Mod3" : "Mod3",
+  "Mod4" : "Mod4",
+  "Mod5" : "Mod5",
+  "Control" : "C",
+  "Alt" : "A",
+  "Meta" : "M",
+  "Super" : "W",
+  "Shift" : "S",
+  "Hyper" : "H"
+}
+
+def key_openbox2gtk(obstr):
+	toks = obstr.split("-")
+	toksgdk = [replace_table_openbox2gtk[mod.lower()] for mod in toks[:-1]]
+	toksgdk.append(toks[-1])
+	return gtk.accelerator_parse("".join(toksgdk))
+
+def key_gtk2openbox(key, mods):
+	result = ""
+	if mods:
+		s = gtk.accelerator_name(0, mods)
+		svec = [replace_table_gtk2openbox[i] for i in s[1:-1].split('><')]
+		result = '-'.join(svec)
+	if key:
+		k = gtk.accelerator_name(key, 0)
+		if result != "":
+			result += '-'
+		result += k
+	return result
+
+#=====================================================================================
+# KeyTable
+#=====================================================================================
+
+class KeyTable:
+	def __init__(self, actionlist, ob):
+		self.widget = gtk.VBox()
+		self.ob = ob
+		self.actionlist = actionlist
+		self.actionlist.actions_cb = self.actions_cb
+
+		self.create_models()
+		self.create_views_and_scroll()
+		self.create_toolbar()
+
+		for kb in self.ob.keyboard.keybinds:
+			self.apply_keybind(kb)
+
+		if len(self.model):
+			self.view.get_selection().select_iter(self.model.get_iter_first())
+
+		cqk_accel_key, cqk_accel_mods = key_openbox2gtk(self.ob.keyboard.chainQuitKey)
+		self.cqk_model.append((cqk_accel_key, cqk_accel_mods, self.ob.keyboard.chainQuitKey))
+
+		self.cqk_hbox = gtk.HBox()
+		cqk_label = gtk.Label("chainQuitKey:")
+		cqk_label.set_padding(5,5)
+
+		cqk_frame = gtk.Frame()
+		cqk_frame.add(self.cqk_view)
+
+		self.cqk_hbox.pack_start(cqk_label, False)
+		self.cqk_hbox.pack_start(cqk_frame)
+
+		self.widget.pack_start(self.toolbar, False)
+		self.widget.pack_start(self.scroll)
+		self.widget.pack_start(self.cqk_hbox, False)
+
+	def apply_keybind(self, kb, parent=None):
+		accel_key, accel_mods = key_openbox2gtk(kb.key)
+		chroot = kb.chroot
+		show_chroot = len(kb.children) > 0
+		n = self.model.append(parent,
+				(accel_key, accel_mods, kb.key, chroot, show_chroot, kb))
+		for c in kb.children:
+			self.apply_keybind(c, n)
+
+	def create_models(self):
+		self.model = gtk.TreeStore(gobject.TYPE_UINT, # accel key
+					gobject.TYPE_INT, # accel mods
+					gobject.TYPE_STRING, # accel string (openbox)
+					gobject.TYPE_BOOLEAN, # chroot
+					gobject.TYPE_BOOLEAN, # show chroot
+					gobject.TYPE_PYOBJECT # OBKeyBind
+					)
+
+		self.cqk_model = gtk.ListStore(gobject.TYPE_UINT, # accel key
+						gobject.TYPE_INT, # accel mods
+						gobject.TYPE_STRING) # accel string (openbox)
+
+	def create_views_and_scroll(self):
+		r0 = gtk.CellRendererAccel()
+		r0.props.editable = True
+		r0.connect('accel-edited', self.accel_edited)
+
+		r1 = gtk.CellRendererText()
+		r1.props.editable = True
+		r1.connect('edited', self.key_edited)
+
+		r2 = gtk.CellRendererToggle()
+		r2.connect('toggled', self.chroot_toggled)
+
+		c0 = gtk.TreeViewColumn("Key", r0, accel_key=0, accel_mods=1)
+		c1 = gtk.TreeViewColumn("Key (text)", r1, text=2)
+		c2 = gtk.TreeViewColumn("Chroot", r2, active=3, visible=4)
+
+		c0.set_expand(True)
+
+		self.view = gtk.TreeView(self.model)
+		self.view.append_column(c0)
+		self.view.append_column(c1)
+		self.view.append_column(c2)
+		self.view.get_selection().connect('changed', self.view_cursor_changed)
+
+		self.scroll = gtk.ScrolledWindow()
+		self.scroll.add(self.view)
+		self.scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+
+		# chainQuitKey table (wtf hack)
+
+		r0 = gtk.CellRendererAccel()
+		r0.props.editable = True
+		r0.connect('accel-edited', self.cqk_accel_edited)
+
+		r1 = gtk.CellRendererText()
+		r1.props.editable = True
+		r1.connect('edited', self.cqk_key_edited)
+
+		c0 = gtk.TreeViewColumn("Key", r0, accel_key=0, accel_mods=1)
+		c1 = gtk.TreeViewColumn("Key (text)", r1, text=2)
+
+		c0.set_expand(True)
+
+		def cqk_view_focus_lost(view, event):
+			view.get_selection().unselect_all()
+
+		self.cqk_view = gtk.TreeView(self.cqk_model)
+		self.cqk_view.set_headers_visible(False)
+		self.cqk_view.append_column(c0)
+		self.cqk_view.append_column(c1)
+		self.cqk_view.connect('focus-out-event', cqk_view_focus_lost)
+
+	def create_toolbar(self):
+		self.toolbar = gtk.Toolbar()
+		self.toolbar.set_style(gtk.TOOLBAR_ICONS)
+		#self.toolbar.set_icon_size(gtk.ICON_SIZE_SMALL_TOOLBAR)
+		self.toolbar.set_show_arrow(False)
+
+		but = gtk.ToolButton(gtk.STOCK_SAVE)
+		but.connect('clicked', self.tb_save_clicked)
+		self.toolbar.insert(but, -1)
+
+		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
+
+		but = gtk.ToolButton(gtk.STOCK_ADD)
+		but.connect('clicked', self.tb_add_sibling_clicked)
+		self.toolbar.insert(but, -1)
+
+		self.add_child_button = gtk.ToolButton(gtk.STOCK_GO_FORWARD)
+		self.add_child_button.connect('clicked', self.tb_add_child_clicked)
+		self.toolbar.insert(self.add_child_button, -1)
+
+		but = gtk.ToolButton(gtk.STOCK_REMOVE)
+		but.connect('clicked', self.tb_del_clicked)
+		self.toolbar.insert(but, -1)
+
+		sep = gtk.SeparatorToolItem()
+		sep.set_draw(False)
+		sep.set_expand(True)
+		self.toolbar.insert(sep, -1)
+
+		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
+
+		but = gtk.ToolButton(gtk.STOCK_QUIT)
+		but.connect('clicked', self.tb_quit_clicked)
+		self.toolbar.insert(but, -1)
+
+	#-----------------------------------------------------------------------------
+	# callbacks
+
+	def tb_quit_clicked(self, button):
+		gtk.main_quit()
+
+	def tb_save_clicked(self, button):
+		self.ob.save()
+
+	def tb_add_sibling_clicked(self, button):
+		(model, it) = self.view.get_selection().get_selected()
+		parent_it = model.iter_parent(it)
+		parent = None
+		if parent_it:
+			parent = model.get_value(parent_it, 5)
+		if it:
+			newkb = self.insert_empty_keybind(parent, model.get_value(it, 5))
+			newit = self.model.insert_after(parent_it, it, (ord('a'), 0, 'a', False, True, newkb))
+		else:
+			newkb = self.insert_empty_keybind()
+			newit = self.model.append(None, (ord('a'), 0, 'a', False, True, newkb))
+
+		if newit:
+			self.view.get_selection().select_iter(newit)
+
+	def tb_add_child_clicked(self, button):
+		(model, it) = self.view.get_selection().get_selected()
+		parent = model.get_value(it, 5)
+		newkb = self.insert_empty_keybind(parent)
+		newit = self.model.append(it, (ord('a'), 0, 'a', False, True, newkb))
+		if len(parent.children) == 1:
+			self.actionlist.set_actions(None)
+
+	def tb_del_clicked(self, button):
+		(model, it) = self.view.get_selection().get_selected()
+		if it:
+			kb = model.get_value(it, 5)
+			kbs = self.ob.keyboard.keybinds
+			if kb.parent:
+				kbs = kb.parent.children
+			kbs.remove(kb)
+			isok = self.model.remove(it)
+			if isok:
+				self.view.get_selection().select_iter(it)
+
+	def actions_cb(self):
+		(model, it) = self.view.get_selection().get_selected()
+		kb = model.get_value(it, 5)
+		if len(kb.actions) == 0:
+			model.set_value(it, 4, True)
+			self.add_child_button.set_sensitive(True)
+		else:
+			model.set_value(it, 4, False)
+			self.add_child_button.set_sensitive(False)
+
+	def view_cursor_changed(self, selection):
+		(model, it) = selection.get_selected()
+		actions = None
+		if it:
+			kb = model.get_value(it, 5)
+			if len(kb.children) == 0 and not kb.chroot:
+				actions = kb.actions
+			self.add_child_button.set_sensitive(len(kb.actions) == 0)
+		else:
+			self.add_child_button.set_sensitive(False)
+		self.actionlist.set_actions(actions)
+
+	def cqk_accel_edited(self, cell, path, accel_key, accel_mods, keycode):
+		self.cqk_model[path][0] = accel_key
+		self.cqk_model[path][1] = accel_mods
+		kstr = key_gtk2openbox(accel_key, accel_mods)
+		self.cqk_model[path][2] = kstr
+		self.ob.keyboard.chainQuitKey = kstr
+		self.view.grab_focus()
+
+	def cqk_key_edited(self, cell, path, text):
+		self.cqk_model[path][0], self.cqk_model[path][1] = key_openbox2gtk(text)
+		self.cqk_model[path][2] = text
+		self.ob.keyboard.chainQuitKey = text
+		self.view.grab_focus()
+
+	def accel_edited(self, cell, path, accel_key, accel_mods, keycode):
+		self.model[path][0] = accel_key
+		self.model[path][1] = accel_mods
+		kstr = key_gtk2openbox(accel_key, accel_mods)
+		self.model[path][2] = kstr
+		self.model[path][5].key = kstr
+
+	def key_edited(self, cell, path, text):
+		self.model[path][0], self.model[path][1] = key_openbox2gtk(text)
+		self.model[path][2] = text
+		self.model[path][5].key = text
+
+	def chroot_toggled(self, cell, path):
+		self.model[path][3] = not self.model[path][3]
+		kb = self.model[path][5]
+		kb.chroot = self.model[path][3]
+		if kb.chroot:
+			self.actionlist.set_actions(None)
+		else:
+			self.actionlist.set_actions(kb.actions)
+
+	#-----------------------------------------------------------------------------
+	def insert_empty_keybind(self, parent=None, after=None):
+		newkb = OBKeyBind(parent)
+		if parent:
+			kbs = parent.children
+		else:
+			kbs = self.ob.keyboard.keybinds
+
+		if after:
+			kbs.insert(kbs.index(after)+1, newkb)
+		else:
+			kbs.append(newkb)
+		return newkb
+
+#=====================================================================================
+# PropertyTable
 #=====================================================================================
 
 class PropertyTable:
@@ -39,15 +360,22 @@ class PropertyTable:
 		self.table.queue_resize()
 		self.table.show_all()
 
-#-------------------------------------------------------------------------------------
+#=====================================================================================
+# ActionList
+#=====================================================================================
 
 class ActionList:
-	def __init__(self, proptable):
-		self.proptable = proptable
+	def __init__(self, proptable=None):
 		self.widget = gtk.VBox()
-		self.keybind = None
+		self.actions = None
+		self.proptable = proptable
+
+		# actions callback, called when action added or deleted
+		# for chroot possibility tracing
+		self.actions_cb = None
 
 		self.create_model()
+		self.create_choices()
 		self.create_view_and_scroll()
 		self.create_toolbar()
 
@@ -58,6 +386,13 @@ class ActionList:
 		self.model = gtk.ListStore(gobject.TYPE_STRING, # name of the action
 					gobject.TYPE_PYOBJECT) # associated OBAction
 
+	def create_choices(self):
+		self.choices = gtk.ListStore(gobject.TYPE_STRING)
+		action_list = actions.keys();
+		action_list.sort()
+		for a in action_list:
+			self.choices.append((a,))
+
 	def create_view_and_scroll(self):
 		# renderer
 		renderer = gtk.CellRendererCombo()
@@ -66,12 +401,7 @@ class ActionList:
 			widget.set_wrap_width(4)
 
 		# action list
-		choices = gtk.ListStore(gobject.TYPE_STRING)
-		action_list = actions.keys();
-		action_list.sort()
-		for a in action_list:
-			choices.append((a,))
-		renderer.props.model = choices
+		renderer.props.model = self.choices
 		renderer.props.text_column = 0
 		renderer.props.editable = True
 		renderer.props.has_entry = False
@@ -121,17 +451,19 @@ class ActionList:
 		ntype = m.get_value(it, 0)
 		self.model[path][0] = ntype
 		self.model[path][1].mutate(ntype)
-		self.proptable.set_action(self.model[path][1])
+		if self.proptable:
+			self.proptable.set_action(self.model[path][1])
 
 	def view_cursor_changed(self, selection):
 		(model, it) = selection.get_selected()
 		act = None
 		if it:
 			act = model.get_value(it, 1)
-		self.proptable.set_action(act)
+		if self.proptable:
+			self.proptable.set_action(act)
 
 	def tb_up_clicked(self, button):
-		if not self.keybind:
+		if self.actions is None:
 			return
 
 		(model, it) = self.view.get_selection().get_selected()
@@ -144,10 +476,10 @@ class ActionList:
 
 		itprev = self.model.get_iter(i-1)
 		self.model.swap(it, itprev)
-		self.keybind.move_up(self.model.get_value(it, 1))
+		self.move_up(self.model.get_value(it, 1))
 
 	def tb_down_clicked(self, button):
-		if not self.keybind:
+		if self.actions is None:
 			return
 
 		(model, it) = self.view.get_selection().get_selected()
@@ -160,46 +492,101 @@ class ActionList:
 
 		itnext = self.model.iter_next(it)
 		self.model.swap(it, itnext)
-		self.keybind.move_down(self.model.get_value(it, 1))
+		self.move_down(self.model.get_value(it, 1))
 
 	def tb_add_clicked(self, button):
-		if not self.keybind:
+		if self.actions is None:
 			return
 
 		(model, it) = self.view.get_selection().get_selected()
 		if it:
-			oba = self.keybind.insert_empty_action(model.get_value(it, 1))
+			oba = self.insert_empty_action(model.get_value(it, 1))
 			newit = self.model.insert_after(it, (oba.name, oba))
 		else:
-			oba = self.keybind.insert_empty_action()
+			oba = self.insert_empty_action()
 			newit = self.model.append((oba.name, oba))
 
 		if newit:
 			self.view.get_selection().select_iter(newit)
 
+		if self.actions_cb:
+			self.actions_cb()
+
 	def tb_del_clicked(self, button):
-		if not self.keybind:
+		if self.actions is None:
 			return
 
 		(model, it) = self.view.get_selection().get_selected()
 		if it:
-			self.keybind.actions.remove(model.get_value(it, 1))
+			self.actions.remove(model.get_value(it, 1))
 			isok = self.model.remove(it)
 			if isok:
 				self.view.get_selection().select_iter(it)
 
+		if self.actions_cb:
+			self.actions_cb()
+
 	#-----------------------------------------------------------------------------
 
-	def set_keybind(self, keybind):
-		self.keybind = keybind
+	def set_actions(self, actionlist):
+		self.actions = actionlist
 		self.model.clear()
-		if not keybind:
+		if not self.actions:
 			return
-		for a in keybind.actions:
+		for a in self.actions:
 			self.model.append((a.name, a))
 		if len(self.model):
 			self.view.get_selection().select_iter(self.model.get_iter_first())
 
+	def insert_empty_action(self, after=None):
+		newact = OBAction()
+		newact.mutate("Execute")
+
+		if after:
+			self.actions.insert(self.actions.index(after)+1, newact)
+		else:
+			self.actions.append(newact)
+		return newact
+
+	def move_up(self, action):
+		i = self.actions.index(action)
+		tmp = self.actions[i-1]
+		self.actions[i-1] = action
+		self.actions[i] = tmp
+
+	def move_down(self, action):
+		i = self.actions.index(action)
+		tmp = self.actions[i+1]
+		self.actions[i+1] = action
+		self.actions[i] = tmp
+
+#=====================================================================================
+# MiniActionList
+#=====================================================================================
+
+class MiniActionList(ActionList):
+	def __init__(self, proptable=None):
+		ActionList.__init__(self, proptable)
+		self.widget.set_size_request(-1, 120)
+		self.view.set_headers_visible(False)
+
+	def create_choices(self):
+		self.choices = gtk.ListStore(gobject.TYPE_STRING)
+		action_list = actions.keys();
+		action_list.sort()
+		for a in action_list:
+			if len(actions[a]) == 0:
+				self.choices.append((a,))
+
+	def insert_empty_action(self, after=None):
+		newact = OBAction()
+		newact.mutate("Unshade")
+
+		if after:
+			self.actions.insert(self.actions.index(after)+1, newact)
+		else:
+			self.actions.append(newact)
+		return newact
 
 #=====================================================================================
 # XML Utilites
@@ -233,57 +620,6 @@ def xml_find_node(elt, name):
 		return nodes[0]
 	else:
 		return None
-
-#-------------------------------------------------------------------------------------
-# change DOM
-#def xml_set_string(elt, string):
-#	elt.firstChild.nodeValue = string
-#
-#def xml_set_bool(elt, b):
-#	if b:
-#		xml_set_string(elt, "yes")
-#	else:
-#		xml_set_string(elt, "no")
-#
-#def xml_set_attr(elt, name, string):
-#	elt.setAttribute(name, string)
-#
-#def xml_remove_attr(elt, name):
-#	try:
-#		elt.removeAttribute(name)
-#	except xml.dom.NotFoundErr:
-#		pass
-#
-#def xml_remove_child(elt, child):
-#	c = elt.removeChild(child)
-#	c.unlink()
-#
-#def xml_remove_all_children(elt):
-#	last = elt.lastChild
-#	while last:
-#		xml_remove_child(elt, last)
-#		last = elt.lastChild
-#
-#def xml_insert_after(elt, new, after=None):
-#	if after:
-#		elt.insertBefore(new, after.nextSibling)
-#	else:
-#		elt.appendChild(new)
-#
-#def xml_insert_textvalue_after(elt, text, value, after=None):
-#	newdom = xml.dom.minidom.parseString("<{0}>{1}</{0}>".format(text, value)).documentElement
-#	xml_insert_after(elt, newdom, after)
-#	return newdom
-#
-#def xml_move_up(elt, what):
-#	upper = what.previousSibling
-#	tmp = elt.removeChild(what)
-#	elt.insertBefore(tmp, upper)
-#
-#def xml_move_down(elt, what):
-#	down = what.nextSibling
-#	tmp = elt.removeChild(down)
-#	elt.insertBefore(tmp, what)
 
 #=====================================================================================
 # Openbox Glue
@@ -346,6 +682,58 @@ class OCString(object):
 		return entry
 
 #=====================================================================================
+# Option Class: Combo
+#=====================================================================================
+
+class OCCombo(object):
+	__slots__ = ('name', 'default', 'choices')
+
+	def __init__(self, name, default, choices):
+		self.name = name
+		self.default = default
+		self.choices = choices
+
+	def apply_default(self, action):
+		action.options[self.name] = self.default
+
+	def parse(self, action, dom):
+		node = xml_find_node(dom, self.name)
+		if not node:
+			for a in self.alts:
+				node = xml_find_node(dom, a)
+				if node:
+					break
+		if node:
+			action.options[self.name] = xml_parse_string(node)
+		else:
+			action.options[self.name] = self.default
+
+	def deparse(self, action):
+		val = action.options[self.name]
+		if val == self.default:
+			return None
+		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
+				.format(self.name, val)).documentElement
+
+	def generate_widget(self, action):
+		def changed(combo, action):
+			text = combo.get_active()
+			action.options[self.name] = self.choices[text]
+
+		model = gtk.ListStore(gobject.TYPE_STRING)
+		for c in self.choices:
+			model.append((c,))
+
+		combo = gtk.ComboBox()
+		combo.set_active(self.choices.index(action.options[self.name]))
+		combo.set_model(model)
+		cell = gtk.CellRendererText()
+		combo.pack_start(cell, True)
+		combo.add_attribute(cell, 'text', 0)
+		combo.connect('changed', changed, action)
+		return combo
+
+#=====================================================================================
 # Option Class: Number
 #=====================================================================================
 
@@ -363,11 +751,6 @@ class OCNumber(object):
 
 	def parse(self, action, dom):
 		node = xml_find_node(dom, self.name)
-		if not node:
-			for a in self.alts:
-				node = xml_find_node(dom, a)
-				if node:
-					break
 		if node:
 			action.options[self.name] = int(xml_parse_string(node))
 		else:
@@ -382,14 +765,14 @@ class OCNumber(object):
 
 	def generate_widget(self, action):
 		def changed(num, action):
-			n = num.get_value_as_int()
+			n = num.get_value()
 			action.options[self.name] = n
 
 		num = gtk.SpinButton()
 		num.set_increments(1, 5)
 		num.set_range(self.min, self.max)
 		num.set_value(action.options[self.name])
-		num.connect('changed', changed, action)
+		num.connect('value-changed', changed, action)
 		return num
 
 #=====================================================================================
@@ -534,6 +917,57 @@ class OCStartupNotify(object):
 		frame = gtk.Frame()
 		frame.add(table)
 		return frame
+
+#=====================================================================================
+# Option Class: FinalActions
+#=====================================================================================
+
+class OCFinalActions(object):
+	__slots__ = ('name')
+
+	def __init__(self):
+		self.name = "finalactions"
+
+	def apply_default(self, action):
+		a1 = OBAction()
+		a1.mutate("Focus")
+		a2 = OBAction()
+		a2.mutate("Raise")
+		a3 = OBAction()
+		a3.mutate("Unshade")
+
+		action.options[self.name] = [a1, a2, a3]
+
+	def parse(self, action, dom):
+		node = xml_find_node(dom, self.name)
+		if node:
+			for a in xml_find_nodes(node, "action"):
+				act = OBAction()
+				act.parse(a)
+				action.options[self.name].append(act)
+		else:
+			self.apply_default(action)
+
+	def deparse(self, action):
+		a = action.options[self.name]
+		if len(a) == 3:
+			if a[0].name == "Focus" and a[1].name == "Raise" and a[2].name == "Unshade":
+				return None
+		if len(a) == 0:
+			return None
+		root = xml.dom.minidom.parseString("<finalactions/>").documentElement
+		for act in a:
+			node = act.deparse()
+			root.appendChild(node)
+		return root
+
+	def generate_widget(self, action):
+		w = MiniActionList()
+		w.set_actions(action.options[self.name])
+		frame = gtk.Frame()
+		frame.add(w.widget)
+		return frame
+
 #-------------------------------------------------------------------------------------
 
 actions = {
@@ -552,8 +986,8 @@ actions = {
 		OCBoolean("allDesktops", False),
 		OCBoolean("panels", False),
 		OCBoolean("desktop", False),
-		OCBoolean("linear", False)
-		# TODO: finalactions
+		OCBoolean("linear", False),
+		OCFinalActions()
 	],
 	"PreviousWindow": [
 		OCBoolean("dialog", True),
@@ -562,25 +996,25 @@ actions = {
 		OCBoolean("allDesktops", False),
 		OCBoolean("panels", False),
 		OCBoolean("desktop", False),
-		OCBoolean("linear", False)
-		# TODO: finalactions
+		OCBoolean("linear", False),
+		OCFinalActions()
 	],
-	"DirectionalFocusNorth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusSouth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusNorthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusNorthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusSouthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalFocusSouthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetNorth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetSouth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetNorthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetNorthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetSouthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
-	"DirectionalTargetSouthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False) ], # TODO: finalactions
+	"DirectionalFocusNorth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusSouth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusNorthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusNorthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusSouthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalFocusSouthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetNorth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetSouth": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetNorthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetNorthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetSouthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
+	"DirectionalTargetSouthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
 	"Desktop": [ OCNumber("desktop", 1, 1, 9999) ],
 	"DesktopNext": [ OCBoolean("wrap", True) ],
 	"DesktopPrevious": [ OCBoolean("wrap", True) ],
@@ -600,6 +1034,78 @@ actions = {
 	"Exit": [ OCBoolean("prompt", True) ],
 	"SessionLogout": [ OCBoolean("prompt", True) ],
 	"Debug": [ OCString("string", "") ],
+
+	"Focus": [],
+	"Raise": [],
+	"Lower": [],
+	"RaiseLower": [],
+	"Unfocus": [],
+	"FocusToBottom": [],
+	"Iconify": [],
+	"Close": [],
+	"ToggleShade": [],
+	"Shade": [],
+	"Unshade": [],
+	"ToggleOmnipresent": [],
+	"ToggleMaximizeFull": [],
+	"MaximizeFull": [],
+	"UnmaximizeFull": [],
+	"ToggleMaximizeVert": [],
+	"MaximizeVert": [],
+	"UnmaximizeVert": [],
+	"ToggleMaximizeHorz": [],
+	"MaximizeHorz": [],
+	"UnmaximizeHorz": [],
+	"ToggleFullscreen": [],
+	"ToggleDecorations": [],
+	"Decorate": [],
+	"Undecorate": [],
+	"SendToDesktop": [ OCNumber("desktop", 1, 1, 9999), OCBoolean("follow", True) ],
+	"SendToDesktopNext": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"SendToDesktopPrevious": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"SendToDesktopLeft": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"SendToDesktopRight": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"SendToDesktopUp": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"SendToDesktopDown": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
+	"Move": [],
+	"Resize": [
+		OCCombo("edge", "none", ['none', "top", "left", "right", "bottom", "topleft", "topright", "bottomleft", "bottomright"])
+	],
+	"MoveToCenter": [],
+	"MoveResizeTo": [
+		OCString("x", "current"),
+		OCString("y", "current"),
+		OCString("width", "current"),
+		OCString("height", "current"),
+		OCString("monitor", "current")
+	],
+	"MoveRelative": [
+		OCNumber("x", 0, -9999, 9999),
+		OCNumber("y", 0, -9999, 9999)
+	],
+	"ResizeRelative": [
+		OCNumber("left", 0, -9999, 9999),
+		OCNumber("right", 0, -9999, 9999),
+		OCNumber("top", 0, -9999, 9999),
+		OCNumber("bottom", 0, -9999, 9999)
+	],
+	"MoveToEdgeNorth": [],
+	"MoveToEdgeSouth": [],
+	"MoveToEdgeWest": [],
+	"MoveToEdgeEast": [],
+	"GrowToEdgeNorth": [],
+	"GrowToEdgeSouth": [],
+	"GrowToEdgeWest": [],
+	"GrowToEdgeEast": [],
+	"ShadeLower": [],
+	"UnshadeRaise": [],
+	"ToggleAlwaysOnTop": [],
+	"ToggleAlwaysOnBottom": [],
+	"SendToTopLayer": [],
+	"SendToBottomLayer": [],
+	"SendToNormalLayer": [],
+
+	"BreakChroot": []
 }
 
 #=====================================================================================
@@ -607,10 +1113,10 @@ actions = {
 #=====================================================================================
 
 class OBAction:
-	def __init__(self, parent):
-		self.parent = parent
+	def __init__(self):
 		self.options = {}
 		self.option_defs = []
+		self.name = None
 
 	def parse(self, dom):
 		# parse 'name' attribute, get options hash and parse
@@ -634,6 +1140,8 @@ class OBAction:
 
 	def mutate(self, newtype):
 		if hasattr(self, "option_defs") and actions[newtype] == self.option_defs:
+			self.options = {}
+			self.name = newtype
 			return
 
 		self.options = {}
@@ -649,9 +1157,9 @@ class OBKeyBind:
 	def __init__(self, parent=None):
 		self.children = []
 		self.actions = []
-		self.parent = parent
-		self.key = None
+		self.key = "a"
 		self.chroot = False
+		self.parent = parent
 
 	def parse(self, dom):
 		self.key = xml_parse_attr(dom, "key")
@@ -665,7 +1173,7 @@ class OBKeyBind:
 				self.children.append(kb)
 		else:
 			for a in xml_find_nodes(dom, "action"):
-				newa = OBAction(self)
+				newa = OBAction()
 				newa.parse(a)
 				self.actions.append(newa)
 
@@ -687,7 +1195,7 @@ class OBKeyBind:
 		return root
 
 	def insert_empty_action(self, after=None):
-		newact = OBAction(self)
+		newact = OBAction()
 		newact.mutate("Execute")
 
 		if after:
@@ -727,6 +1235,9 @@ class OBKeyboard:
 
 	def deparse(self):
 		root = xml.dom.minidom.parseString('<keyboard/>').documentElement
+		chainQuitKey_node = xml.dom.minidom.parseString(
+				'<chainQuitKey>{0}</chainQuitKey>'.format(self.chainQuitKey)).documentElement
+		root.appendChild(chainQuitKey_node)
 
 		for k in self.keybinds:
 			root.appendChild(k.deparse())
@@ -739,8 +1250,11 @@ class OpenboxConfig:
 	def __init__(self):
 		self.dom = None
 		self.keyboard = None
+		self.path = None
 
 	def load(self, path):
+		self.path = path
+
 		# load config DOM
 		self.dom = xml.dom.minidom.parse(path)
 
@@ -748,3 +1262,23 @@ class OpenboxConfig:
 		keyboard = xml_find_node(self.dom.documentElement, "keyboard")
 		if keyboard:
 			self.keyboard = OBKeyboard(keyboard)
+
+	def save(self):
+		if self.path is None:
+			return
+
+		# it's all hack, waste of resources etc, but does pretty good result
+		keyboard = xml_find_node(self.dom.documentElement, "keyboard")
+		newdom = self.keyboard.deparse()
+		self.dom.documentElement.replaceChild(newdom, keyboard)
+		with file(self.path, "w") as f:
+			f.write(self.dom.documentElement.toxml("utf-8"))
+		self.reconfigure_openbox()
+
+	def reconfigure_openbox(self):
+		lines = os.popen("ps aux").read().splitlines()
+		ob = os.popen("which openbox").read().strip()
+		for line in lines:
+			if ob in " ".join(line.split()[10:]):
+				os.kill(int(line.split()[1]), 12)
+				break
