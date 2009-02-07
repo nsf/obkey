@@ -769,7 +769,7 @@ class OCNumber(object):
 	def parse(self, action, dom):
 		node = xml_find_node(dom, self.name)
 		if node:
-			action.options[self.name] = int(xml_parse_string(node))
+			action.options[self.name] = xml_parse_string(node)
 		else:
 			action.options[self.name] = self.default
 
@@ -782,7 +782,7 @@ class OCNumber(object):
 
 	def generate_widget(self, action):
 		def changed(num, action):
-			n = num.get_value()
+			n = num.get_value_as_int()
 			action.options[self.name] = n
 
 		num = gtk.SpinButton()
