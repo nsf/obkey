@@ -629,7 +629,11 @@ def xml_parse_bool(elt):
 	return False
 
 def xml_find_nodes(elt, name):
-	return elt.getElementsByTagName(name)
+	children = []
+	for n in elt.childNodes:
+		if n.nodeName == name:
+			children.append(n)
+	return children
 
 def xml_find_node(elt, name):
 	nodes = xml_find_nodes(elt, name)
@@ -769,7 +773,7 @@ class OCNumber(object):
 	def parse(self, action, dom):
 		node = xml_find_node(dom, self.name)
 		if node:
-			action.options[self.name] = xml_parse_string(node)
+			action.options[self.name] = int(float(xml_parse_string(node)))
 		else:
 			action.options[self.name] = self.default
 
@@ -1208,7 +1212,6 @@ class OBKeyBind:
 		else:
 			for a in self.actions:
 				root.appendChild(a.deparse())
-
 		return root
 
 	def insert_empty_action(self, after=None):
