@@ -961,6 +961,7 @@ class OCFinalActions(object):
 
 	def parse(self, action, dom):
 		node = xml_find_node(dom, self.name)
+		action.options[self.name] = []
 		if node:
 			for a in xml_find_nodes(node, "action"):
 				act = OBAction()
