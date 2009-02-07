@@ -1292,8 +1292,10 @@ class OpenboxConfig:
 		keyboard = xml_find_node(self.dom.documentElement, "keyboard")
 		newdom = self.keyboard.deparse()
 		self.dom.documentElement.replaceChild(newdom, keyboard)
-		with file(self.path, "w") as f:
+		f = file(self.path, "w")
+		if f:
 			f.write(self.dom.documentElement.toxml("utf-8"))
+			f.close()
 		self.reconfigure_openbox()
 
 	def reconfigure_openbox(self):
