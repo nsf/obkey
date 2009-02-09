@@ -90,9 +90,21 @@ class KeyTable:
 		self.actionlist = actionlist
 		self.actionlist.actions_cb = self.actions_cb
 
+		# self.model
+		# self.cqk_model
 		self.create_models()
+
+		# self.view
+		# self.scroll
+		# self.cqk_view
 		self.create_views_and_scroll()
+
+		# self.toolbar
+		# self.add_child_button
 		self.create_toolbar()
+
+		# self.context_menu
+		self.create_context_menu()
 
 		for kb in self.ob.keyboard.keybinds:
 			self.apply_keybind(kb)
@@ -125,6 +137,19 @@ class KeyTable:
 				(accel_key, accel_mods, kb.key, chroot, show_chroot, kb))
 		for c in kb.children:
 			self.apply_keybind(c, n)
+
+	def create_context_menu(self):
+		self.context_menu = gtk.Menu()
+
+		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
+		self.context_menu.append(item)
+		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
+		self.context_menu.append(item)
+		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
+		self.context_menu.append(item)
+		item = gtk.ImageMenuItem(gtk.STOCK_DELETE)
+		self.context_menu.append(item)
+		self.context_menu.show_all()
 
 	def create_models(self):
 		self.model = gtk.TreeStore(gobject.TYPE_UINT, # accel key
@@ -162,6 +187,7 @@ class KeyTable:
 		self.view.append_column(c1)
 		self.view.append_column(c2)
 		self.view.get_selection().connect('changed', self.view_cursor_changed)
+		self.view.connect('button-press-event', self.view_button_clicked)
 
 		self.scroll = gtk.ScrolledWindow()
 		self.scroll.add(self.view)
@@ -198,21 +224,21 @@ class KeyTable:
 		self.toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_SAVE)
-		but.connect('clicked', self.tb_save_clicked)
+		but.connect('clicked', lambda but: self.ob.save())
 		self.toolbar.insert(but, -1)
 
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(gtk.STOCK_ADD)
-		but.connect('clicked', self.tb_add_sibling_clicked)
+		but.connect('clicked', lambda but: self.add_sibling())
 		self.toolbar.insert(but, -1)
 
 		self.add_child_button = gtk.ToolButton(gtk.STOCK_GO_FORWARD)
-		self.add_child_button.connect('clicked', self.tb_add_child_clicked)
+		self.add_child_button.connect('clicked', lambda but: self.add_child())
 		self.toolbar.insert(self.add_child_button, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
-		but.connect('clicked', self.tb_del_clicked)
+		but.connect('clicked', lambda but: self.del_selected())
 		self.toolbar.insert(but, -1)
 
 		sep = gtk.SeparatorToolItem()
@@ -223,53 +249,24 @@ class KeyTable:
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(gtk.STOCK_QUIT)
-		but.connect('clicked', self.tb_quit_clicked)
+		but.connect('clicked', lambda but: gtk.main_quit())
 		self.toolbar.insert(but, -1)
 
 	#-----------------------------------------------------------------------------
 	# callbacks
 
-	def tb_quit_clicked(self, button):
-		gtk.main_quit()
-
-	def tb_save_clicked(self, button):
-		self.ob.save()
-
-	def tb_add_sibling_clicked(self, button):
-		(model, it) = self.view.get_selection().get_selected()
-		parent_it = model.iter_parent(it)
-		parent = None
-		if parent_it:
-			parent = model.get_value(parent_it, 5)
-		if it:
-			newkb = self.insert_empty_keybind(parent, model.get_value(it, 5))
-			newit = self.model.insert_after(parent_it, it, (ord('a'), 0, 'a', False, True, newkb))
-		else:
-			newkb = self.insert_empty_keybind()
-			newit = self.model.append(None, (ord('a'), 0, 'a', False, True, newkb))
-
-		if newit:
-			self.view.get_selection().select_iter(newit)
-
-	def tb_add_child_clicked(self, button):
-		(model, it) = self.view.get_selection().get_selected()
-		parent = model.get_value(it, 5)
-		newkb = self.insert_empty_keybind(parent)
-		newit = self.model.append(it, (ord('a'), 0, 'a', False, True, newkb))
-		if len(parent.children) == 1:
-			self.actionlist.set_actions(None)
-
-	def tb_del_clicked(self, button):
-		(model, it) = self.view.get_selection().get_selected()
-		if it:
-			kb = model.get_value(it, 5)
-			kbs = self.ob.keyboard.keybinds
-			if kb.parent:
-				kbs = kb.parent.children
-			kbs.remove(kb)
-			isok = self.model.remove(it)
-			if isok:
-				self.view.get_selection().select_iter(it)
+	def view_button_clicked(self, view, event):
+		if event.button == 3:
+			x = int(event.x)
+			y = int(event.y)
+			time = event.time
+			pathinfo = view.get_path_at_pos(x, y)
+			if pathinfo:
+				path, col, cellx, celly = pathinfo
+				view.grab_focus()
+				view.set_cursor(path, col, 0)
+				self.context_menu.popup(None, None, None, event.button, time)
+			return 1
 
 	def actions_cb(self):
 		(model, it) = self.view.get_selection().get_selected()
@@ -329,6 +326,42 @@ class KeyTable:
 			self.actionlist.set_actions(kb.actions)
 
 	#-----------------------------------------------------------------------------
+	def add_sibling(self):
+		(model, it) = self.view.get_selection().get_selected()
+		parent_it = model.iter_parent(it)
+		parent = None
+		if parent_it:
+			parent = model.get_value(parent_it, 5)
+		if it:
+			newkb = self.insert_empty_keybind(parent, model.get_value(it, 5))
+			newit = self.model.insert_after(parent_it, it, (ord('a'), 0, 'a', False, True, newkb))
+		else:
+			newkb = self.insert_empty_keybind()
+			newit = self.model.append(None, (ord('a'), 0, 'a', False, True, newkb))
+
+		if newit:
+			self.view.get_selection().select_iter(newit)
+
+	def add_child(self):
+		(model, it) = self.view.get_selection().get_selected()
+		parent = model.get_value(it, 5)
+		newkb = self.insert_empty_keybind(parent)
+		newit = self.model.append(it, (ord('a'), 0, 'a', False, True, newkb))
+		if len(parent.children) == 1:
+			self.actionlist.set_actions(None)
+
+	def del_selected(self):
+		(model, it) = self.view.get_selection().get_selected()
+		if it:
+			kb = model.get_value(it, 5)
+			kbs = self.ob.keyboard.keybinds
+			if kb.parent:
+				kbs = kb.parent.children
+			kbs.remove(kb)
+			isok = self.model.remove(it)
+			if isok:
+				self.view.get_selection().select_iter(it)
+
 	def insert_empty_keybind(self, parent=None, after=None):
 		newkb = OBKeyBind(parent)
 		if parent:
