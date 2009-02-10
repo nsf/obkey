@@ -1,0 +1,9 @@
+10 February 2009:
+
+* context menu functionality (only keybinds for now), available actions:
+  - cut
+  - copy
+  - paste
+  - paste as child
+  - delete
+
