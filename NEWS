@@ -1,6 +1,7 @@
 10 February 2009:
 
-* context menu functionality (only keybinds for now), available actions:
+* context menu functionality (right mouse button click), available actions
+  (only for keybinds):
   - cut
   - copy
   - paste
