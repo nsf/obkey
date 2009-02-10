@@ -18,8 +18,9 @@
 #-----------------------------------------------------------------------
 
 import xml.dom.minidom
-import gtk
 import gobject
+import copy
+import gtk
 import os
 
 #=====================================================================================
@@ -132,7 +133,7 @@ class KeyTable:
 	def apply_keybind(self, kb, parent=None):
 		accel_key, accel_mods = key_openbox2gtk(kb.key)
 		chroot = kb.chroot
-		show_chroot = len(kb.children) > 0
+		show_chroot = len(kb.children) > 0 or not len(kb.actions)
 		n = self.model.append(parent,
 				(accel_key, accel_mods, kb.key, chroot, show_chroot, kb))
 		for c in kb.children:
@@ -140,15 +141,37 @@ class KeyTable:
 
 	def create_context_menu(self):
 		self.context_menu = gtk.Menu()
+		self.context_items = {}
+		self.copied = None
 
 		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
+		item.connect('activate', lambda menu: self.cut_selected())
 		self.context_menu.append(item)
+		self.context_items['cut'] = item
+
 		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
+		item.connect('activate', lambda menu: self.copy_selected())
 		self.context_menu.append(item)
+		self.context_items['copy'] = item
+
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
+		item.connect('activate', lambda menu: self.insert_sibling(self.copied))
+		item.set_sensitive(False)
 		self.context_menu.append(item)
+		self.context_items['paste'] = item
+
+		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
+		item.get_child().set_text("Paste As Child")
+		item.connect('activate', lambda menu: self.insert_child(self.copied))
+		item.set_sensitive(False)
+		self.context_menu.append(item)
+		self.context_items['paste_children'] = item
+
 		item = gtk.ImageMenuItem(gtk.STOCK_DELETE)
+		item.connect('activate', lambda menu: self.del_selected())
 		self.context_menu.append(item)
+		self.context_items['delete'] = item
+
 		self.context_menu.show_all()
 
 	def create_models(self):
@@ -230,11 +253,11 @@ class KeyTable:
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(gtk.STOCK_ADD)
-		but.connect('clicked', lambda but: self.add_sibling())
+		but.connect('clicked', lambda but: self.insert_sibling(OBKeyBind()))
 		self.toolbar.insert(but, -1)
 
 		self.add_child_button = gtk.ToolButton(gtk.STOCK_GO_FORWARD)
-		self.add_child_button.connect('clicked', lambda but: self.add_child())
+		self.add_child_button.connect('clicked', lambda but: self.insert_child(OBKeyBind()))
 		self.toolbar.insert(self.add_child_button, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
@@ -265,6 +288,16 @@ class KeyTable:
 				path, col, cellx, celly = pathinfo
 				view.grab_focus()
 				view.set_cursor(path, col, 0)
+				self.context_items['cut'].set_sensitive(True)
+				self.context_items['copy'].set_sensitive(True)
+				self.context_items['delete'].set_sensitive(True)
+				self.context_menu.popup(None, None, None, event.button, time)
+			else:
+				view.grab_focus()
+				view.get_selection().unselect_all()
+				self.context_items['cut'].set_sensitive(False)
+				self.context_items['copy'].set_sensitive(False)
+				self.context_items['delete'].set_sensitive(False)
 				self.context_menu.popup(None, None, None, event.button, time)
 			return 1
 
@@ -274,9 +307,11 @@ class KeyTable:
 		if len(kb.actions) == 0:
 			model.set_value(it, 4, True)
 			self.add_child_button.set_sensitive(True)
+			self.context_items['paste_children'].set_sensitive(True)
 		else:
 			model.set_value(it, 4, False)
 			self.add_child_button.set_sensitive(False)
+			self.context_items['paste_children'].set_sensitive(False)
 
 	def view_cursor_changed(self, selection):
 		(model, it) = selection.get_selected()
@@ -286,8 +321,10 @@ class KeyTable:
 			if len(kb.children) == 0 and not kb.chroot:
 				actions = kb.actions
 			self.add_child_button.set_sensitive(len(kb.actions) == 0)
+			self.context_items['paste_children'].set_sensitive(len(kb.actions) == 0)
 		else:
 			self.add_child_button.set_sensitive(False)
+			self.context_items['paste_children'].set_sensitive(False)
 		self.actionlist.set_actions(actions)
 
 	def cqk_accel_edited(self, cell, path, accel_key, accel_mods, keycode):
@@ -326,27 +363,67 @@ class KeyTable:
 			self.actionlist.set_actions(kb.actions)
 
 	#-----------------------------------------------------------------------------
-	def add_sibling(self):
+	def cut_selected(self):
+		self.copy_selected()
+		self.del_selected()
+
+	def copy_selected(self):
 		(model, it) = self.view.get_selection().get_selected()
-		parent_it = model.iter_parent(it)
-		parent = None
-		if parent_it:
-			parent = model.get_value(parent_it, 5)
 		if it:
-			newkb = self.insert_empty_keybind(parent, model.get_value(it, 5))
-			newit = self.model.insert_after(parent_it, it, (ord('a'), 0, 'a', False, True, newkb))
+			sel = model.get_value(it, 5)
+			self.copied = copy.deepcopy(sel)
+			self.context_items['paste'].set_sensitive(True)
+
+	def _insert_keybind(self, keybind, parent=None, after=None):
+		keybind.parent = parent
+		if parent:
+			kbs = parent.children
 		else:
-			newkb = self.insert_empty_keybind()
-			newit = self.model.append(None, (ord('a'), 0, 'a', False, True, newkb))
+			kbs = self.ob.keyboard.keybinds
+
+		if after:
+			kbs.insert(kbs.index(after)+1, keybind)
+		else:
+			kbs.append(keybind)
+
+	def insert_sibling(self, keybind):
+		(model, it) = self.view.get_selection().get_selected()
+
+		accel_key, accel_mods = key_openbox2gtk(keybind.key)
+		show_chroot = len(keybind.children) > 0 or not len(keybind.actions)
+
+		if it:
+			parent_it = model.iter_parent(it)
+			parent = None
+			if parent_it:
+				parent = model.get_value(parent_it, 5)
+			after = model.get_value(it, 5)
+
+			self._insert_keybind(keybind, parent, after)
+			newit = self.model.insert_after(parent_it, it,
+					(accel_key, accel_mods, keybind.key, keybind.chroot, show_chroot, keybind))
+		else:
+			self._insert_keybind(keybind)
+			newit = self.model.append(None,
+					(accel_key, accel_mods, keybind.key, keybind.chroot, show_chroot, keybind))
 
 		if newit:
+			for c in keybind.children:
+				self.apply_keybind(c, newit)
 			self.view.get_selection().select_iter(newit)
 
-	def add_child(self):
+	def insert_child(self, keybind):
 		(model, it) = self.view.get_selection().get_selected()
 		parent = model.get_value(it, 5)
-		newkb = self.insert_empty_keybind(parent)
-		newit = self.model.append(it, (ord('a'), 0, 'a', False, True, newkb))
+		self._insert_keybind(keybind, parent)
+
+		accel_key, accel_mods = key_openbox2gtk(keybind.key)
+		show_chroot = len(keybind.children) > 0 or not len(keybind.actions)
+
+		newit = self.model.append(it,
+				(accel_key, accel_mods, keybind.key, keybind.chroot, show_chroot, keybind))
+
+		# it means that we have inserted first child here, change status
 		if len(parent.children) == 1:
 			self.actionlist.set_actions(None)
 
@@ -362,18 +439,6 @@ class KeyTable:
 			if isok:
 				self.view.get_selection().select_iter(it)
 
-	def insert_empty_keybind(self, parent=None, after=None):
-		newkb = OBKeyBind(parent)
-		if parent:
-			kbs = parent.children
-		else:
-			kbs = self.ob.keyboard.keybinds
-
-		if after:
-			kbs.insert(kbs.index(after)+1, newkb)
-		else:
-			kbs.append(newkb)
-		return newkb
 
 #=====================================================================================
 # PropertyTable
@@ -1206,6 +1271,13 @@ class OBAction:
 		for od in self.option_defs:
 			od.apply_default(self)
 
+	def __deepcopy__(self, memo):
+		# we need deepcopy here, because option_defs are never copied
+		result = self.__class__()
+		result.option_defs = self.option_defs
+		result.options = copy.deepcopy(self.options, memo)
+		result.name = copy.deepcopy(self.name, memo)
+		return result
 #-------------------------------------------------------------------------------------
 
 class OBKeyBind:
@@ -1269,7 +1341,6 @@ class OBKeyBind:
 		tmp = self.actions[i+1]
 		self.actions[i+1] = action
 		self.actions[i] = tmp
-
 
 #-------------------------------------------------------------------------------------
 
