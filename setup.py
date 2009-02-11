@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-libdir = 'share/obkey'
+libdir = 'share/obkey/icons'
 
 setup(name='obkey',
       version='0.9',
