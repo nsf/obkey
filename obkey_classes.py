@@ -674,6 +674,7 @@ class ActionList:
 	def set_actions(self, actionlist):
 		self.actions = actionlist
 		self.model.clear()
+		self.widget.set_sensitive(self.actions is not None)
 		if not self.actions:
 			return
 		for a in self.actions:
