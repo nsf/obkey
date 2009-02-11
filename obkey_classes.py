@@ -596,7 +596,7 @@ class ActionList:
 			self.proptable.set_action(act)
 
 	def tb_delall_clicked(self, button):
-		if self.actions is None:
+		if self.actions is None or not len(self.actions):
 			return
 
 		del self.actions[:]
