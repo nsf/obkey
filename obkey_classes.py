@@ -167,10 +167,10 @@ class KeyTable:
 		self.context_menu.append(item)
 		self.context_items['paste_children'] = item
 
-		item = gtk.ImageMenuItem(gtk.STOCK_DELETE)
+		item = gtk.ImageMenuItem(gtk.STOCK_REMOVE)
 		item.connect('activate', lambda menu: self.del_selected())
 		self.context_menu.append(item)
-		self.context_items['delete'] = item
+		self.context_items['remove'] = item
 
 		self.context_menu.show_all()
 
@@ -295,14 +295,14 @@ class KeyTable:
 				view.set_cursor(path, col, 0)
 				self.context_items['cut'].set_sensitive(True)
 				self.context_items['copy'].set_sensitive(True)
-				self.context_items['delete'].set_sensitive(True)
+				self.context_items['remove'].set_sensitive(True)
 				self.context_menu.popup(None, None, None, event.button, time)
 			else:
 				view.grab_focus()
 				view.get_selection().unselect_all()
 				self.context_items['cut'].set_sensitive(False)
 				self.context_items['copy'].set_sensitive(False)
-				self.context_items['delete'].set_sensitive(False)
+				self.context_items['remove'].set_sensitive(False)
 				self.context_menu.popup(None, None, None, event.button, time)
 			return 1
 
