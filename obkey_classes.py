@@ -161,7 +161,7 @@ class KeyTable:
 		self.context_items['paste'] = item
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
-		item.get_child().set_text("Paste As Child")
+		item.get_child().set_text("Paste as child")
 		item.connect('activate', lambda menu: self.insert_child(self.copied))
 		item.set_sensitive(False)
 		self.context_menu.append(item)
@@ -247,20 +247,24 @@ class KeyTable:
 		self.toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_SAVE)
+		but.set_tooltip_text("Save {0} file".format(self.ob.path))
 		but.connect('clicked', lambda but: self.ob.save())
 		self.toolbar.insert(but, -1)
 
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
-		but = gtk.ToolButton(gtk.STOCK_ADD)
+		but = gtk.ToolButton(gtk.image_new_from_file("icons/add_sibling.png"))
+		but.set_tooltip_text("Add sibling")
 		but.connect('clicked', lambda but: self.insert_sibling(OBKeyBind()))
 		self.toolbar.insert(but, -1)
 
-		self.add_child_button = gtk.ToolButton(gtk.STOCK_GO_FORWARD)
+		self.add_child_button = gtk.ToolButton(gtk.image_new_from_file("icons/add_child.png"))
+		self.add_child_button.set_tooltip_text("Add child")
 		self.add_child_button.connect('clicked', lambda but: self.insert_child(OBKeyBind()))
 		self.toolbar.insert(self.add_child_button, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
+		but.set_tooltip_text("Remove keybind")
 		but.connect('clicked', lambda but: self.del_selected())
 		self.toolbar.insert(but, -1)
 
@@ -272,6 +276,7 @@ class KeyTable:
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(gtk.STOCK_QUIT)
+		but.set_tooltip_text("Quit application")
 		but.connect('clicked', lambda but: gtk.main_quit())
 		self.toolbar.insert(but, -1)
 
@@ -543,21 +548,34 @@ class ActionList:
 		self.toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_ADD)
+		but.set_tooltip_text("Append action")
 		but.connect('clicked', self.tb_add_clicked)
 		self.toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
+		but.set_tooltip_text("Remove action")
 		but.connect('clicked', self.tb_del_clicked)
 		self.toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_GO_UP)
+		but.set_tooltip_text("Move action up")
 		but.connect('clicked', self.tb_up_clicked)
 		self.toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_GO_DOWN)
+		but.set_tooltip_text("Move action down")
 		but.connect('clicked', self.tb_down_clicked)
 		self.toolbar.insert(but, -1)
-
+		
+		sep = gtk.SeparatorToolItem()
+		sep.set_draw(False)
+		sep.set_expand(True)
+		self.toolbar.insert(sep, -1)
+		
+		but = gtk.ToolButton(gtk.STOCK_DELETE)
+		but.set_tooltip_text("Remove all actions")
+		but.connect('clicked', self.tb_delall_clicked)
+		self.toolbar.insert(but, -1)
 	#-----------------------------------------------------------------------------
 	# callbacks
 
@@ -576,6 +594,16 @@ class ActionList:
 			act = model.get_value(it, 1)
 		if self.proptable:
 			self.proptable.set_action(act)
+
+	def tb_delall_clicked(self, button):
+		if self.actions is None:
+			return
+
+		del self.actions[:]
+		self.model.clear()
+
+		if self.actions_cb:
+			self.actions_cb()
 
 	def tb_up_clicked(self, button):
 		if self.actions is None:

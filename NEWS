@@ -1,6 +1,14 @@
+11 February 2009:
+
+* New custom icons: add_child and add_sibling.
+* Tooltips for all toolbar buttons.
+* "Remove all" button on action list toolbar.
+
+-----------------------------------------------------------------------------
+
 10 February 2009:
 
-* context menu functionality (right mouse button click), available actions
+* Context menu functionality (right mouse button click), available actions
   (only for keybinds):
   - cut
   - copy
