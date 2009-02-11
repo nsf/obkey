@@ -31,7 +31,7 @@ import os
 # please mail me.
 
 config_prefix = '/usr'
-config_icons = os.path.join(config_prefix, '/share/obmenu/icons')
+config_icons = os.path.join(config_prefix, '/share/obkey/icons')
 
 #=====================================================================================
 # Key utils
