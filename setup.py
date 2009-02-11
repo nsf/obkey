@@ -1,11 +1,6 @@
 from distutils.core import setup
-from distutils.sysconfig import get_config_var
-import sys
 
 libdir = 'share/obkey'
-print get_config_var('prefix')
-sys.exit(1)
-
 
 setup(name='obkey',
       version='0.9',
