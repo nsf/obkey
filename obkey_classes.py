@@ -865,11 +865,6 @@ class OCCombo(object):
 
 	def parse(self, action, dom):
 		node = xml_find_node(dom, self.name)
-		if not node:
-			for a in self.alts:
-				node = xml_find_node(dom, a)
-				if node:
-					break
 		if node:
 			action.options[self.name] = xml_parse_string(node)
 		else:
