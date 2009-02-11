@@ -24,6 +24,16 @@ import gtk
 import os
 
 #=====================================================================================
+# Config
+#=====================================================================================
+
+# XXX: Sorry, for now this is it. If you know a better way to do this with setup.py:
+# please mail me.
+
+config_prefix = '/usr'
+config_icons = os.path.join(config_prefix, '/share/obmenu/icons')
+
+#=====================================================================================
 # Key utils
 #=====================================================================================
 
@@ -102,6 +112,7 @@ class KeyTable:
 
 		# self.toolbar
 		# self.add_child_button
+		self.load_icons()
 		self.create_toolbar()
 
 		# self.context_menu
@@ -240,6 +251,14 @@ class KeyTable:
 		self.cqk_view.append_column(c1)
 		self.cqk_view.connect('focus-out-event', cqk_view_focus_lost)
 
+	def load_icons(self):
+		self.icons = {}
+		icons_path = 'icons'
+		if os.path.isdir(config_icons):
+			icons_path = config_icons
+		self.icons['add_sibling'] = gtk.image_new_from_file(os.path.join(icons_path, "add_sibling.png"))
+		self.icons['add_child'] = gtk.image_new_from_file(os.path.join(icons_path, "add_child.png"))
+
 	def create_toolbar(self):
 		self.toolbar = gtk.Toolbar()
 		self.toolbar.set_style(gtk.TOOLBAR_ICONS)
@@ -253,12 +272,12 @@ class KeyTable:
 
 		self.toolbar.insert(gtk.SeparatorToolItem(), -1)
 
-		but = gtk.ToolButton(gtk.image_new_from_file("icons/add_sibling.png"))
+		but = gtk.ToolButton(self.icons['add_sibling'])
 		but.set_tooltip_text("Add sibling")
 		but.connect('clicked', lambda but: self.insert_sibling(OBKeyBind()))
 		self.toolbar.insert(but, -1)
 
-		self.add_child_button = gtk.ToolButton(gtk.image_new_from_file("icons/add_child.png"))
+		self.add_child_button = gtk.ToolButton(self.icons['add_child'])
 		self.add_child_button.set_tooltip_text("Add child")
 		self.add_child_button.connect('clicked', lambda but: self.insert_child(OBKeyBind()))
 		self.toolbar.insert(self.add_child_button, -1)
