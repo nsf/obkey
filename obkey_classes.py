@@ -21,6 +21,7 @@ import xml.dom.minidom
 import gobject
 import copy
 import gtk
+import sys
 import os
 
 #=====================================================================================
@@ -73,7 +74,10 @@ replace_table_gtk2openbox = {
 
 def key_openbox2gtk(obstr):
 	toks = obstr.split("-")
-	toksgdk = [replace_table_openbox2gtk[mod.lower()] for mod in toks[:-1]]
+	try:
+		toksgdk = [replace_table_openbox2gtk[mod.lower()] for mod in toks[:-1]]
+	except:
+		return (None, None)
 	toksgdk.append(toks[-1])
 	return gtk.accelerator_parse("".join(toksgdk))
 
@@ -118,6 +122,8 @@ class KeyTable:
 		# self.context_menu
 		self.create_context_menu()
 
+		self.errors = []
+
 		for kb in self.ob.keyboard.keybinds:
 			self.apply_keybind(kb)
 
@@ -125,7 +131,22 @@ class KeyTable:
 			self.view.get_selection().select_iter(self.model.get_iter_first())
 
 		cqk_accel_key, cqk_accel_mods = key_openbox2gtk(self.ob.keyboard.chainQuitKey)
-		self.cqk_model.append((cqk_accel_key, cqk_accel_mods, self.ob.keyboard.chainQuitKey))
+		if cqk_accel_mods is not None:
+			self.cqk_model.append((cqk_accel_key, cqk_accel_mods, self.ob.keyboard.chainQuitKey))
+		else:
+			self.errors.append("Can't convert chainQuitKey value: {0}".format(self.ob.keyboard.chainQuitKey))
+		
+		if self.errors:
+			errorstext = "The following errors had place while loading:\n\n"
+			for e in self.errors:
+				errorstext += e + "\n"
+			errorstext += "\nDo you want to continue?"
+			dlg = gtk.MessageDialog(None, gtk.DIALOG_MODAL, gtk.MESSAGE_ERROR, 
+					gtk.BUTTONS_YES_NO, errorstext)
+			response = dlg.run()
+			dlg.destroy()
+			if response == gtk.RESPONSE_NO:
+				sys.exit(1)
 
 		self.cqk_hbox = gtk.HBox()
 		cqk_label = gtk.Label("chainQuitKey:")
@@ -143,10 +164,13 @@ class KeyTable:
 
 	def apply_keybind(self, kb, parent=None):
 		accel_key, accel_mods = key_openbox2gtk(kb.key)
-		chroot = kb.chroot
-		show_chroot = len(kb.children) > 0 or not len(kb.actions)
-		n = self.model.append(parent,
-				(accel_key, accel_mods, kb.key, chroot, show_chroot, kb))
+		if accel_key is not None:
+			chroot = kb.chroot
+			show_chroot = len(kb.children) > 0 or not len(kb.actions)
+			n = self.model.append(parent,
+					(accel_key, accel_mods, kb.key, chroot, show_chroot, kb))
+		else:
+			self.errors.append("Can't convert key value: {0}".format(kb.key))
 		for c in kb.children:
 			self.apply_keybind(c, n)
 
@@ -585,12 +609,12 @@ class ActionList:
 		but.set_tooltip_text("Move action down")
 		but.connect('clicked', self.tb_down_clicked)
 		self.toolbar.insert(but, -1)
-		
+
 		sep = gtk.SeparatorToolItem()
 		sep.set_draw(False)
 		sep.set_expand(True)
 		self.toolbar.insert(sep, -1)
-		
+
 		but = gtk.ToolButton(gtk.STOCK_DELETE)
 		but.set_tooltip_text("Remove all actions")
 		but.connect('clicked', self.tb_delall_clicked)
