@@ -355,7 +355,8 @@ class KeyTable:
 		if len(kb.actions) == 0:
 			model.set_value(it, 4, True)
 			self.add_child_button.set_sensitive(True)
-			self.context_items['paste_children'].set_sensitive(True)
+			if self.copied:
+				self.context_items['paste_children'].set_sensitive(True)
 		else:
 			model.set_value(it, 4, False)
 			self.add_child_button.set_sensitive(False)
@@ -369,7 +370,8 @@ class KeyTable:
 			if len(kb.children) == 0 and not kb.chroot:
 				actions = kb.actions
 			self.add_child_button.set_sensitive(len(kb.actions) == 0)
-			self.context_items['paste_children'].set_sensitive(len(kb.actions) == 0)
+			if self.copied:
+				self.context_items['paste_children'].set_sensitive(len(kb.actions) == 0)
 		else:
 			self.add_child_button.set_sensitive(False)
 			self.context_items['paste_children'].set_sensitive(False)
