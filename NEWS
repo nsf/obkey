@@ -1,3 +1,14 @@
+16 February 2009:
+
+* Context menu for action list.
+* New sensitivity system for widgets (those are sensitive which make sense).
+* Better parse error handling.
+* Code was refactored a bit.
+* Distribution system.
+* And bug fixes.
+
+-----------------------------------------------------------------------------
+
 11 February 2009:
 
 * New custom icons: add_child and add_sibling.
