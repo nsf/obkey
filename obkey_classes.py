@@ -309,12 +309,12 @@ class KeyTable:
 		toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(self.icons['add_sibling'])
-		but.set_tooltip_text("Add sibling")
+		but.set_tooltip_text("Insert sibling keybind")
 		but.connect('clicked', lambda but: self.insert_sibling(OBKeyBind()))
 		toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(self.icons['add_child'])
-		but.set_tooltip_text("Add child")
+		but.set_tooltip_text("Insert child keybind")
 		but.connect('clicked', lambda but: self.insert_child(OBKeyBind()))
 		toolbar.insert(but, -1)
 		self.sw_insert_child.append(but)
@@ -674,7 +674,7 @@ class ActionList:
 		toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_ADD)
-		but.set_tooltip_text("Append action")
+		but.set_tooltip_text("Insert action")
 		but.connect('clicked', lambda but: self.insert_action(OBAction("Focus")))
 		toolbar.insert(but, -1)
 
