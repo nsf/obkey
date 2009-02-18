@@ -94,6 +94,11 @@ def key_gtk2openbox(key, mods):
 		result += k
 	return result
 
+#=====================================================================================
+# This is the uber cool switchers/conditions(sensors) system.
+# Helps a lot with widgets sensitivity.
+#=====================================================================================
+
 class SensCondition:
 	def __init__(self, initial_state):
 		self.switchers = []
@@ -199,27 +204,31 @@ class KeyTable:
 
 		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
 		item.connect('activate', lambda menu: self.cut_selected())
+		item.get_child().set_label("Cu_t")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
 		item.connect('activate', lambda menu: self.copy_selected())
+		item.get_child().set_label("_Copy")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
 		item.connect('activate', lambda menu: self.insert_sibling(self.copied))
+		item.get_child().set_label("_Paste")
 		context_menu.append(item)
 		self.sw_paste_buffer.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
-		item.get_child().set_text("Paste as child")
+		item.get_child().set_label("P_aste as child")
 		item.connect('activate', lambda menu: self.insert_child(self.copied))
 		context_menu.append(item)
 		self.sw_insert_child_and_paste.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_REMOVE)
 		item.connect('activate', lambda menu: self.del_selected())
+		item.get_child().set_label("_Remove")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
@@ -646,21 +655,25 @@ class ActionList:
 
 		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
 		item.connect('activate', lambda menu: self.cut_selected())
+		item.get_child().set_label("Cu_t")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
 		item.connect('activate', lambda menu: self.copy_selected())
+		item.get_child().set_label("_Copy")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
 		item.connect('activate', lambda menu: self.insert_action(self.copied))
+		item.get_child().set_label("_Paste")
 		context_menu.append(item)
 		self.sw_paste_buffer.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_REMOVE)
 		item.connect('activate', lambda menu: self.del_selected())
+		item.get_child().set_label("_Remove")
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
