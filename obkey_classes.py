@@ -1,7 +1,7 @@
 #!/usr/bin/python
 #-----------------------------------------------------------------------
 # Openbox Key Editor
-# Copyright (C) 2009 nsf
+# Copyright (C) 2009 nsf <no.smile.face@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -931,7 +931,10 @@ def xml_parse_attr_bool(elt, name):
 	return False
 
 def xml_parse_string(elt):
-	return elt.firstChild.nodeValue
+	if elt.hasChildNodes():
+		return elt.firstChild.nodeValue
+	else:
+		return ""
 
 def xml_parse_bool(elt):
 	val = elt.firstChild.nodeValue.lower()
