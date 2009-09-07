@@ -18,6 +18,8 @@
 #-----------------------------------------------------------------------
 
 import xml.dom.minidom
+from StringIO import StringIO
+from string import strip
 import gobject
 import copy
 import gtk
@@ -956,6 +958,43 @@ def xml_find_node(elt, name):
 	else:
 		return None
 
+def fixed_writexml(self, writer, indent="", addindent="", newl=""):
+    # indent = current indentation
+    # addindent = indentation to add to higher levels
+    # newl = newline string
+    writer.write(indent+"<" + self.tagName)
+    	
+    attrs = self._get_attributes()
+    a_names = attrs.keys()
+    a_names.sort()
+    
+    for a_name in a_names:
+        writer.write(" %s=\"" % a_name)
+        xml.dom.minidom._write_data(writer, attrs[a_name].value)
+        writer.write("\"")
+    if self.childNodes:
+        if len(self.childNodes) == 1 \
+          and self.childNodes[0].nodeType == xml.dom.minidom.Node.TEXT_NODE:
+            writer.write(">")
+            self.childNodes[0].writexml(writer, "", "", "")
+            writer.write("</%s>%s" % (self.tagName, newl))
+            return
+        writer.write(">%s" % newl)
+        for node in self.childNodes:
+            fixed_writexml(node, writer,indent+addindent,addindent,newl)
+        writer.write("%s</%s>%s" % (indent,self.tagName,newl))
+    else:
+        writer.write("/>%s"%(newl))
+
+def fixed_toprettyxml(self, indent="", addindent="\t", newl="\n"):
+    # indent = current indentation
+    # addindent = indentation to add to higher levels
+    # newl = newline string
+    writer = StringIO()
+
+    fixed_writexml(self, writer, indent, addindent, newl)
+    return writer.getvalue()
+
 #=====================================================================================
 # Openbox Glue
 #=====================================================================================
@@ -1088,6 +1127,8 @@ class OCNumber(object):
 
 	def deparse(self, action):
 		val = action.options[self.name]
+		if val == self.default:
+			return None
 		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
 				.format(self.name, val)).documentElement
 
@@ -1450,6 +1491,11 @@ class OBAction:
 			self.mutate(name)
 
 	def parse(self, dom):
+		# call parseChild if childNodes exist
+		if dom.hasChildNodes():
+			for child in dom.childNodes:
+				self.parseChild(child)
+
 		# parse 'name' attribute, get options hash and parse
 		self.name = xml_parse_attr(dom, "name")
 
@@ -1460,6 +1506,24 @@ class OBAction:
 
 		for od in self.option_defs:
 			od.parse(self, dom)
+
+	# calls itself until no childNodes are found and strip() values of last node
+	def parseChild(self, dom):
+		try:
+			if dom.hasChildNodes():
+				for child in dom.childNodes:
+					try:
+						child.nodeValue = child.nodeValue.strip()
+					except AttributeError:
+						pass
+					self.parseChild(child)
+		except AttributeError:
+			pass
+		else:
+			try:
+				dom.nodeValue = dom.nodeValue.strip()
+			except AttributeError:
+				pass
 
 	def deparse(self):
 		root = xml.dom.minidom.parseString('<action name="{0}"/>'.format(self.name)).documentElement
@@ -1605,11 +1669,12 @@ class OpenboxConfig:
 
 		# it's all hack, waste of resources etc, but does pretty good result
 		keyboard = xml_find_node(self.dom.documentElement, "keyboard")
-		newdom = self.keyboard.deparse()
+		newdom = xml_find_node(xml.dom.minidom.parseString(fixed_toprettyxml(self.keyboard.deparse(),"  ","  ")),"keyboard")
 		self.dom.documentElement.replaceChild(newdom, keyboard)
 		f = file(self.path, "w")
 		if f:
-			f.write(self.dom.documentElement.toxml("utf-8"))
+			xmlform = self.dom.documentElement
+			f.write(xmlform.toxml("utf8"))
 			f.close()
 		self.reconfigure_openbox()
 
