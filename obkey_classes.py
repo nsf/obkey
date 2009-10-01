@@ -260,6 +260,7 @@ class KeyTable:
 		scroll = gtk.ScrolledWindow()
 		scroll.add(view)
 		scroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		scroll.set_shadow_type(gtk.SHADOW_IN)
 		return scroll
 
 	def create_views(self, model, cqk_model):
@@ -633,6 +634,7 @@ class ActionList:
 		scroll = gtk.ScrolledWindow()
 		scroll.add(view)
 		scroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+		scroll.set_shadow_type(gtk.SHADOW_IN)
 		return scroll
 
 	def create_view(self, model):
