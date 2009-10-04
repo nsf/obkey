@@ -1134,8 +1134,6 @@ class OCNumber(object):
 
 	def deparse(self, action):
 		val = action.options[self.name]
-		if val == self.default:
-			return None
 		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
 				.format(self.name, val)).documentElement
 
