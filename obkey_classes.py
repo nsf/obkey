@@ -970,11 +970,11 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
 	# addindent = indentation to add to higher levels
 	# newl = newline string
 	writer.write(indent+"<" + self.tagName)
-	
+
 	attrs = self._get_attributes()
 	a_names = attrs.keys()
 	a_names.sort()
-	
+
 	for a_name in a_names:
 		writer.write(" %s=\"" % a_name)
 		xml.dom.minidom._write_data(writer, attrs[a_name].value)
@@ -998,7 +998,7 @@ def fixed_toprettyxml(self, indent="", addindent="\t", newl="\n"):
 	# addindent = indentation to add to higher levels
 	# newl = newline string
 	writer = StringIO()
-	
+
 	fixed_writexml(self, writer, indent, addindent, newl)
 	return writer.getvalue()
 
