@@ -319,7 +319,7 @@ class KeyTable:
 		toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_SAVE)
-		but.set_tooltip_text("Save {0} file".format(self.ob.path))
+		but.set_tooltip_text("Save " + self.ob.path + " file")
 		but.connect('clicked', lambda but: self.ob.save())
 		toolbar.insert(but, -1)
 
@@ -1049,8 +1049,7 @@ class OCString(object):
 		val = action.options[self.name]
 		if val == self.default:
 			return None
-		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
-				.format(self.name, val)).documentElement
+		return xml.dom.minidom.parseString("<"+str(self.name)+">"+str(val)+"</"+str(self.name)+">").documentElement
 
 	def generate_widget(self, action):
 		def changed(entry, action):
@@ -1088,8 +1087,7 @@ class OCCombo(object):
 		val = action.options[self.name]
 		if val == self.default:
 			return None
-		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
-				.format(self.name, val)).documentElement
+		return xml.dom.minidom.parseString("<"+str(self.name)+">"+str(val)+"</"+str(self.name)+">").documentElement
 
 	def generate_widget(self, action):
 		def changed(combo, action):
@@ -1134,8 +1132,9 @@ class OCNumber(object):
 
 	def deparse(self, action):
 		val = action.options[self.name]
-		return xml.dom.minidom.parseString("<{0}>{1}</{0}>"
-				.format(self.name, val)).documentElement
+		if val == self.default:
+			return None
+		return xml.dom.minidom.parseString("<"+str(self.name)+">"+str(val)+"</"+str(self.name)+">").documentElement
 
 	def generate_widget(self, action):
 		def changed(num, action):
@@ -1174,11 +1173,9 @@ class OCBoolean(object):
 		if action.options[self.name] == self.default:
 			return None
 		if action.options[self.name]:
-			return xml.dom.minidom.parseString("<{0}>yes</{0}>"
-					.format(self.name)).documentElement
+			return xml.dom.minidom.parseString("<"+str(self.name)+">yes</"+str(self.name)+">").documentElement
 		else:
-			return xml.dom.minidom.parseString("<{0}>no</{0}>"
-					.format(self.name)).documentElement
+			return xml.dom.minidom.parseString("<"+str(self.name)+">no</"+str(self.name)+">").documentElement
 
 	def generate_widget(self, action):
 		def changed(checkbox, action):
@@ -1229,11 +1226,11 @@ class OCStartupNotify(object):
 			return None
 		root = xml.dom.minidom.parseString("<startupnotify><enabled>yes</enabled></startupnotify>").documentElement
 		if action.options['startupnotify_wmclass'] != "":
-			root.appendChild(xml.dom.minidom.parseString("<wmclass>{0}</wmclass>".format(action.options['startupnotify_wmclass'])).documentElement)
+			root.appendChild(xml.dom.minidom.parseString("<wmclass>"+action.options['startupnotify_wmclass']+"</wmclass>").documentElement)
 		if action.options['startupnotify_name'] != "":
-			root.appendChild(xml.dom.minidom.parseString("<name>{0}</name>".format(action.options['startupnotify_name'])).documentElement)
+			root.appendChild(xml.dom.minidom.parseString("<name>"+action.options['startupnotify_name']+"</name>").documentElement)
 		if action.options['startupnotify_icon'] != "":
-			root.appendChild(xml.dom.minidom.parseString("<icon>{0}</icon>".format(action.options['startupnotify_icon'])).documentElement)
+			root.appendChild(xml.dom.minidom.parseString("<icon>"+action.options['startupnotify_icon']+"</icon>").documentElement)
 		return root
 
 	def generate_widget(self, action):
@@ -1531,7 +1528,7 @@ class OBAction:
 				pass
 
 	def deparse(self):
-		root = xml.dom.minidom.parseString('<action name="{0}"/>'.format(self.name)).documentElement
+		root = xml.dom.minidom.parseString('<action name="'+str(self.name)+'"/>').documentElement
 		for od in self.option_defs:
 			od_node = od.deparse(self)
 			if od_node:
@@ -1586,11 +1583,9 @@ class OBKeyBind:
 
 	def deparse(self):
 		if self.chroot:
-			root = xml.dom.minidom.parseString('<keybind key="{0}" chroot="yes"/>'
-				.format(self.key)).documentElement
+			root = xml.dom.minidom.parseString('<keybind key="'+str(self.key)+'" chroot="yes"/>').documentElement
 		else:
-			root = xml.dom.minidom.parseString('<keybind key="{0}"/>'
-				.format(self.key)).documentElement
+			root = xml.dom.minidom.parseString('<keybind key="'+str(self.key)+'"/>').documentElement
 
 		if len(self.children):
 			for k in self.children:
@@ -1640,8 +1635,7 @@ class OBKeyboard:
 
 	def deparse(self):
 		root = xml.dom.minidom.parseString('<keyboard/>').documentElement
-		chainQuitKey_node = xml.dom.minidom.parseString(
-				'<chainQuitKey>{0}</chainQuitKey>'.format(self.chainQuitKey)).documentElement
+		chainQuitKey_node = xml.dom.minidom.parseString('<chainQuitKey>'+str(self.chainQuitKey)+'</chainQuitKey>').documentElement
 		root.appendChild(chainQuitKey_node)
 
 		for k in self.keybinds:
