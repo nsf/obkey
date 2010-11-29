@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Openbox Key bindings
+Name[zh_TW]=Openbox 組態管理器
+Comment=Configure and personalize the Openbox key bindings manager
+Icon=obconf
+Exec=obkey %f
+Categories=Settings;DesktopSettings;GTK;
+MimeType=application/x-openbox-theme;
+StartupNotify=true
+Terminal=false
