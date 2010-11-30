@@ -1678,9 +1678,4 @@ class OpenboxConfig:
 		self.reconfigure_openbox()
 
 	def reconfigure_openbox(self):
-		lines = os.popen("ps aux").read().splitlines()
-		ob = os.popen("which openbox").read().strip()
-		for line in lines:
-			if ob in " ".join(line.split()[10:]):
-				os.kill(int(line.split()[1]), 12)
-				break
+		os.system("openbox --reconfigure")
