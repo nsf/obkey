@@ -30,6 +30,7 @@ import copy
 import gtk
 import sys
 import os
+import gettext
 
 #=====================================================================================
 # Config
@@ -40,6 +41,13 @@ import os
 
 config_prefix = '/usr'
 config_icons = os.path.join(config_prefix, 'share/obkey/icons')
+#config_locale_dir = os.path.join(config_prefix, 'share/locale')
+config_locale_dir = 'locale' # DEBUG
+
+gettext.install('obkey', config_locale_dir) # init gettext
+
+# localized title
+config_title = _('obkey')
 
 #=====================================================================================
 # Key utils
@@ -195,7 +203,7 @@ class KeyTable:
 
 	def create_cqk_hbox(self, cqk_view):
 		cqk_hbox = gtk.HBox()
-		cqk_label = gtk.Label("chainQuitKey:")
+		cqk_label = gtk.Label(_("chainQuitKey:"))
 		cqk_label.set_padding(5,5)
 
 		cqk_frame = gtk.Frame()
@@ -211,31 +219,31 @@ class KeyTable:
 
 		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
 		item.connect('activate', lambda menu: self.cut_selected())
-		item.get_child().set_label("Cu_t")
+		item.get_child().set_label(_("Cu_t"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
 		item.connect('activate', lambda menu: self.copy_selected())
-		item.get_child().set_label("_Copy")
+		item.get_child().set_label(_("_Copy"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
 		item.connect('activate', lambda menu: self.insert_sibling(self.copied))
-		item.get_child().set_label("_Paste")
+		item.get_child().set_label(_("_Paste"))
 		context_menu.append(item)
 		self.sw_paste_buffer.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
-		item.get_child().set_label("P_aste as child")
+		item.get_child().set_label(_("P_aste as child"))
 		item.connect('activate', lambda menu: self.insert_child(self.copied))
 		context_menu.append(item)
 		self.sw_insert_child_and_paste.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_REMOVE)
 		item.connect('activate', lambda menu: self.del_selected())
-		item.get_child().set_label("_Remove")
+		item.get_child().set_label(_("_Remove"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
@@ -275,9 +283,9 @@ class KeyTable:
 		r2 = gtk.CellRendererToggle()
 		r2.connect('toggled', self.chroot_toggled)
 
-		c0 = gtk.TreeViewColumn("Key", r0, accel_key=0, accel_mods=1)
-		c1 = gtk.TreeViewColumn("Key (text)", r1, text=2)
-		c2 = gtk.TreeViewColumn("Chroot", r2, active=3, visible=4)
+		c0 = gtk.TreeViewColumn(_("Key"), r0, accel_key=0, accel_mods=1)
+		c1 = gtk.TreeViewColumn(_("Key (text)"), r1, text=2)
+		c2 = gtk.TreeViewColumn(_("Chroot"), r2, active=3, visible=4)
 
 		c0.set_expand(True)
 
@@ -319,25 +327,25 @@ class KeyTable:
 		toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_SAVE)
-		but.set_tooltip_text("Save " + self.ob.path + " file")
+		but.set_tooltip_text(_("Save ") + self.ob.path + _(" file"))
 		but.connect('clicked', lambda but: self.ob.save())
 		toolbar.insert(but, -1)
 
 		toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(self.icons['add_sibling'])
-		but.set_tooltip_text("Insert sibling keybind")
+		but.set_tooltip_text(_("Insert sibling keybind"))
 		but.connect('clicked', lambda but: self.insert_sibling(OBKeyBind()))
 		toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(self.icons['add_child'])
-		but.set_tooltip_text("Insert child keybind")
+		but.set_tooltip_text(_("Insert child keybind"))
 		but.connect('clicked', lambda but: self.insert_child(OBKeyBind()))
 		toolbar.insert(but, -1)
 		self.sw_insert_child.append(but)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
-		but.set_tooltip_text("Remove keybind")
+		but.set_tooltip_text(_("Remove keybind"))
 		but.connect('clicked', lambda but: self.del_selected())
 		toolbar.insert(but, -1)
 		self.sw_selection_available.append(but)
@@ -350,7 +358,7 @@ class KeyTable:
 		toolbar.insert(gtk.SeparatorToolItem(), -1)
 
 		but = gtk.ToolButton(gtk.STOCK_QUIT)
-		but.set_tooltip_text("Quit application")
+		but.set_tooltip_text(_("Quit application"))
 		but.connect('clicked', lambda but: gtk.main_quit())
 		toolbar.insert(but, -1)
 		return toolbar
@@ -552,7 +560,7 @@ class PropertyTable:
 		self.widget.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
 
 	def add_row(self, label_text, table):
-		label = gtk.Label(label_text)
+		label = gtk.Label(_(label_text))
 		label.set_alignment(0, 0)
 		row = self.table.props.n_rows
 		self.table.attach(label, 0, 1, row, row+1, gtk.EXPAND | gtk.FILL, 0, 5, 0)
@@ -623,11 +631,12 @@ class ActionList:
 					gobject.TYPE_PYOBJECT) # associated OBAction
 
 	def create_choices(self):
-		choices = gtk.ListStore(gobject.TYPE_STRING)
-		action_list = actions.keys();
-		action_list.sort()
-		for a in action_list:
-			choices.append((a,))
+		choices = gtk.ListStore(gobject.TYPE_STRING,gobject.TYPE_STRING)
+		action_list = {}
+		for a in actions:
+			action_list[_(a)] = a
+		for a in sorted(action_list.keys()):
+			choices.append((a,action_list[a]))
 		return choices
 
 	def create_scroll(self, view):
@@ -650,7 +659,7 @@ class ActionList:
 		renderer.connect('changed', self.action_class_changed)
 		renderer.connect('editing-started', editingstarted)
 
-		column = gtk.TreeViewColumn("Actions", renderer, text=0)
+		column = gtk.TreeViewColumn(_("Actions"), renderer, text=0)
 
 		view = gtk.TreeView(model)
 		view.append_column(column)
@@ -664,25 +673,25 @@ class ActionList:
 
 		item = gtk.ImageMenuItem(gtk.STOCK_CUT)
 		item.connect('activate', lambda menu: self.cut_selected())
-		item.get_child().set_label("Cu_t")
+		item.get_child().set_label(_("Cu_t"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_COPY)
 		item.connect('activate', lambda menu: self.copy_selected())
-		item.get_child().set_label("_Copy")
+		item.get_child().set_label(_("_Copy"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_PASTE)
 		item.connect('activate', lambda menu: self.insert_action(self.copied))
-		item.get_child().set_label("_Paste")
+		item.get_child().set_label(_("_Paste"))
 		context_menu.append(item)
 		self.sw_paste_buffer.append(item)
 
 		item = gtk.ImageMenuItem(gtk.STOCK_REMOVE)
 		item.connect('activate', lambda menu: self.del_selected())
-		item.get_child().set_label("_Remove")
+		item.get_child().set_label(_("_Remove"))
 		context_menu.append(item)
 		self.sw_selection_available.append(item)
 
@@ -696,24 +705,24 @@ class ActionList:
 		toolbar.set_show_arrow(False)
 
 		but = gtk.ToolButton(gtk.STOCK_ADD)
-		but.set_tooltip_text("Insert action")
+		but.set_tooltip_text(_("Insert action"))
 		but.connect('clicked', lambda but: self.insert_action(OBAction("Focus")))
 		toolbar.insert(but, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_REMOVE)
-		but.set_tooltip_text("Remove action")
+		but.set_tooltip_text(_("Remove action"))
 		but.connect('clicked', lambda but: self.del_selected())
 		toolbar.insert(but, -1)
 		self.sw_selection_available.append(but)
 
 		but = gtk.ToolButton(gtk.STOCK_GO_UP)
-		but.set_tooltip_text("Move action up")
+		but.set_tooltip_text(_("Move action up"))
 		but.connect('clicked', lambda but: self.move_selected_up())
 		toolbar.insert(but, -1)
 		self.sw_can_move_up.append(but)
 
 		but = gtk.ToolButton(gtk.STOCK_GO_DOWN)
-		but.set_tooltip_text("Move action down")
+		but.set_tooltip_text(_("Move action down"))
 		but.connect('clicked', lambda but: self.move_selected_down())
 		toolbar.insert(but, -1)
 		self.sw_can_move_down.append(but)
@@ -724,7 +733,7 @@ class ActionList:
 		toolbar.insert(sep, -1)
 
 		but = gtk.ToolButton(gtk.STOCK_DELETE)
-		but.set_tooltip_text("Remove all actions")
+		but.set_tooltip_text(_("Remove all actions"))
 		but.connect('clicked', lambda but: self.clear())
 		toolbar.insert(but, -1)
 		self.sw_action_list_nonempty.append(but)
@@ -751,8 +760,8 @@ class ActionList:
 
 	def action_class_changed(self, combo, path, it):
 		m = combo.props.model
-		ntype = m.get_value(it, 0)
-		self.model[path][0] = ntype
+		ntype = m.get_value(it, 1)
+		self.model[path][0] = m.get_value(it, 0)
 		self.model[path][1].mutate(ntype)
 		if self.proptable:
 			self.proptable.set_action(self.model[path][1])
@@ -856,10 +865,10 @@ class ActionList:
 		(model, it) = self.view.get_selection().get_selected()
 		if it:
 			self._insert_action(action, model.get_value(it, 1))
-			newit = self.model.insert_after(it, (action.name, action))
+			newit = self.model.insert_after(it, (_(action.name), action))
 		else:
 			self._insert_action(action)
-			newit = self.model.append((action.name, action))
+			newit = self.model.append((_(action.name), action))
 
 		if newit:
 			self.view.get_selection().select_iter(newit)
@@ -892,7 +901,7 @@ class ActionList:
 		if not self.actions:
 			return
 		for a in self.actions:
-			self.model.append((a.name, a))
+			self.model.append((_(a.name), a))
 		if len(self.model):
 			self.view.get_selection().select_iter(self.model.get_iter_first())
 		self.cond_action_list_nonempty.set_state(len(self.model))
@@ -917,12 +926,13 @@ class MiniActionList(ActionList):
 		self.view.set_headers_visible(False)
 
 	def create_choices(self):
-		choices = gtk.ListStore(gobject.TYPE_STRING)
-		action_list = actions.keys();
-		action_list.sort()
-		for a in action_list:
-			if len(actions[a]) == 0:
-				choices.append((a,))
+		choices = gtk.ListStore(gobject.TYPE_STRING,gobject.TYPE_STRING)
+		action_list = {}
+		for a in actions:
+			action_list[_(a)] = a
+		for a in sorted(action_list.keys()):
+			if len(actions[action_list[a]]) == 0:
+				choices.append((a,action_list[a]))
 		return choices
 
 #=====================================================================================
@@ -1096,7 +1106,7 @@ class OCCombo(object):
 
 		model = gtk.ListStore(gobject.TYPE_STRING)
 		for c in self.choices:
-			model.append((c,))
+			model.append((_(c),))
 
 		combo = gtk.ComboBox()
 		combo.set_active(self.choices.index(action.options[self.name]))
@@ -1267,7 +1277,7 @@ class OCStartupNotify(object):
 		enabled.connect('toggled', enabled_toggled, action, sens_list)
 
 		def put_table(table, label_text, widget, row, addtosens=True):
-			label = gtk.Label(label_text)
+			label = gtk.Label(_(label_text))
 			label.set_padding(5,5)
 			label.set_alignment(0,0)
 			if addtosens:

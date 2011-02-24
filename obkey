@@ -46,6 +46,7 @@ ob.load(path)
 
 win = gtk.Window(gtk.WINDOW_TOPLEVEL)
 win.set_default_size(640,480)
+win.set_title(obkey_classes.config_title)
 win.connect("destroy", die)
 
 tbl = obkey_classes.PropertyTable()

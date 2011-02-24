@@ -1,0 +1,4 @@
+I store all translation files in a binary form.
+
+So, please, if you update translation files, run 'make' here and use
+'../locale' dir changes as a part of a git commit.
