@@ -465,7 +465,7 @@ class KeyTable:
 		kb.chroot = self.model[path][3]
 		if kb.chroot:
 			self.actionlist.set_actions(None)
-		else:
+		elif not kb.children:
 			self.actionlist.set_actions(kb.actions)
 
 	#-----------------------------------------------------------------------------
