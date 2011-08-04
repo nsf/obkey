@@ -10,7 +10,7 @@ locales = [(os.path.join(localedir, l, 'LC_MESSAGES'),
             [os.path.join('locale', l, 'LC_MESSAGES', 'obkey.mo')]) for l in langs]
 
 setup(name='obkey',
-      version='0.9',
+      version='1.0',
       description='Openbox Key Editor',
       author='nsf',
       author_email='no.smile.face@gmail.com',
