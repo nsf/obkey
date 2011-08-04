@@ -36,11 +36,6 @@ path = os.getenv("HOME") + "/.config/openbox/rc.xml"
 if len(sys.argv) == 2:
 	path = sys.argv[1]
 
-#!!!!!!!!!!!!!!!! DEVELOPMENT VERSION !!!!!!!!!!!!!!!!!!!!!!
-if not os.path.exists(path+".bak"):
-	os.system("cp {0} {0}.bak".format(path))
-#-----------------------------------------------------------
-
 ob = obkey_classes.OpenboxConfig()
 ob.load(path)
 
