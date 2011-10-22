@@ -1361,7 +1361,7 @@ actions = {
 		OCString("menu", "")
 	],
 	"NextWindow": [
-		OCBoolean("dialog", True),
+		OCCombo('dialog', 'list', ['list', 'icons', 'none']),
 		OCBoolean("bar", True),
 		OCBoolean("raise", False),
 		OCBoolean("allDesktops", False),
