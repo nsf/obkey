@@ -1121,13 +1121,14 @@ class OCCombo(object):
 #=====================================================================================
 
 class OCNumber(object):
-	__slots__ = ('name', 'default', 'min', 'max')
+	__slots__ = ('name', 'default', 'min', 'max', 'explicit_defaults')
 
-	def __init__(self, name, default, mmin, mmax):
+	def __init__(self, name, default, mmin, mmax, explicit_defaults=False):
 		self.name = name
 		self.default = default
 		self.min = mmin
 		self.max = mmax
+		self.explicit_defaults = explicit_defaults
 
 	def apply_default(self, action):
 		action.options[self.name] = self.default
@@ -1141,7 +1142,7 @@ class OCNumber(object):
 
 	def deparse(self, action):
 		val = action.options[self.name]
-		if val == self.default:
+		if not self.explicit_defaults and (val == self.default):
 			return None
 		return xml.dom.minidom.parseString("<"+str(self.name)+">"+str(val)+"</"+str(self.name)+">").documentElement
 
@@ -1396,7 +1397,7 @@ actions = {
 	"DirectionalTargetNorthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
 	"DirectionalTargetSouthEast": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
 	"DirectionalTargetSouthWest": [ OCBoolean("dialog", True), OCBoolean("bar", True), OCBoolean("raise", False), OCFinalActions() ],
-	"Desktop": [ OCNumber("desktop", 1, 1, 9999) ],
+	"Desktop": [ OCNumber("desktop", 1, 1, 9999, True) ],
 	"DesktopNext": [ OCBoolean("wrap", True) ],
 	"DesktopPrevious": [ OCBoolean("wrap", True) ],
 	"DesktopLeft": [ OCBoolean("wrap", True) ],
@@ -1441,7 +1442,7 @@ actions = {
 	"ToggleDecorations": [],
 	"Decorate": [],
 	"Undecorate": [],
-	"SendToDesktop": [ OCNumber("desktop", 1, 1, 9999), OCBoolean("follow", True) ],
+	"SendToDesktop": [ OCNumber("desktop", 1, 1, 9999, True), OCBoolean("follow", True) ],
 	"SendToDesktopNext": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
 	"SendToDesktopPrevious": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
 	"SendToDesktopLeft": [ OCBoolean("wrap", True), OCBoolean("follow", True) ],
