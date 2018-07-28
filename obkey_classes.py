@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #------------------------------------------------------------------------------
 # Openbox Key Editor
 # Copyright (C) 2009 nsf <no.smile.face@gmail.com>
@@ -31,6 +32,9 @@ import gtk
 import sys
 import os
 import gettext
+
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 #=====================================================================================
 # Config
